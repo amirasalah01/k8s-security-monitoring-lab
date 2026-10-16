@@ -1,0 +1,29 @@
+# Prometheus + Grafana (SOC dashboard)
+# helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring -f helm/kube-prometheus-values.yaml
+
+alertmanager:
+  enabled: false             # alerting is handled by Falcosidekick -> n8n -> Slack
+
+prometheus:
+  prometheusSpec:
+    # pick up the Falcosidekick ServiceMonitor without extra labels
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 3d
+
+grafana:
+  adminPassword: "admin"     # lab only - change it
+  service:
+    type: NodePort
+    nodePort: 30300
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL

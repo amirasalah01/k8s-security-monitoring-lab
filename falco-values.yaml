@@ -1,0 +1,38 @@
+# Falco runtime security + Falcosidekick (alert router)
+# helm upgrade --install falco falcosecurity/falco -n falco --create-namespace -f helm/falco-values.yaml
+
+driver:
+  kind: modern_ebpf          # no kernel module needed (requires a BTF-enabled kernel)
+
+tty: true                    # flush alerts immediately
+
+falco:
+  json_output: true
+  json_include_output_property: true
+  priority: notice
+
+# Custom detection rules are injected from falco-rules/custom-rules.yaml
+# by the install script (--set-file customRules.custom-rules\.yaml=...)
+
+falcosidekick:
+  enabled: true
+  replicaCount: 1
+  serviceMonitor:
+    enabled: true            # expose alert metrics to Prometheus
+  webui:
+    enabled: true
+    replicaCount: 1
+    service:
+      type: NodePort
+      nodePort: 30282
+    redis:
+      storageEnabled: false
+  config:
+    # 1) Every alert is stored in Loki (SOC dashboard / investigation)
+    loki:
+      hostport: "http://loki.monitoring.svc.cluster.local:3100"
+      minimumpriority: "notice"
+    # 2) Only important alerts go to n8n -> Slack (avoid alert fatigue)
+    webhook:
+      address: "http://n8n.automation.svc.cluster.local:5678/webhook/falco-alerts"
+      minimumpriority: "warning"

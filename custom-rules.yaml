@@ -1,0 +1,45 @@
+# Custom Falco detection rules (detection-as-code)
+# They reuse macros from the default Falco ruleset (spawned_process, container, open_write).
+
+- list: secmon_package_managers
+  items: [apt, apt-get, apk, yum, dnf, pip, pip3, npm]
+
+- list: secmon_network_tools
+  items: [curl, wget, nc, ncat, netcat, nmap, socat]
+
+- rule: Package Manager Executed in Container
+  desc: >
+    A package manager was launched inside a running container. Containers should be
+    immutable; installing packages at runtime indicates drift or an attacker adding tools.
+  condition: spawned_process and container and proc.name in (secmon_package_managers)
+  output: >
+    Package manager executed in container (user=%user.name command=%proc.cmdline
+    container=%container.name image=%container.image.repository
+    ns=%k8s.ns.name pod=%k8s.pod.name)
+  priority: WARNING
+  tags: [container, drift, mitre_persistence, secmon]
+
+- rule: Network Tool Launched in Container
+  desc: >
+    A network reconnaissance / download tool was started inside a container
+    (possible payload download, reverse shell or lateral movement).
+  condition: spawned_process and container and proc.name in (secmon_network_tools)
+  output: >
+    Network tool launched in container (user=%user.name command=%proc.cmdline
+    container=%container.name image=%container.image.repository
+    ns=%k8s.ns.name pod=%k8s.pod.name)
+  priority: WARNING
+  tags: [container, network, mitre_discovery, secmon]
+
+- rule: Write to Sensitive Directory in Container
+  desc: Detect file writes under /etc or binary directories inside a container.
+  condition: >
+    open_write and container
+    and (fd.name startswith /etc/ or fd.name startswith /usr/bin/
+         or fd.name startswith /bin/ or fd.name startswith /usr/sbin/)
+  output: >
+    File written in sensitive directory (user=%user.name file=%fd.name
+    command=%proc.cmdline container=%container.name
+    ns=%k8s.ns.name pod=%k8s.pod.name)
+  priority: ERROR
+  tags: [container, filesystem, mitre_persistence, secmon]

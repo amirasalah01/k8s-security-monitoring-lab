@@ -1,0 +1,81 @@
+{
+  "name": "Falco Security Alerts -> Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "falco-alerts",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Falco Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "falco-alerts"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format each Falco alert for Slack\nconst out = [];\nfor (const item of $input.all()) {\n  const a = item.json.body || item.json;\n  const f = a.output_fields || {};\n  const emoji = { Emergency: ':rotating_light:', Alert: ':rotating_light:', Critical: ':red_circle:', Error: ':large_orange_circle:', Warning: ':large_yellow_circle:' }[a.priority] || ':information_source:';\n  const text = [\n    `${emoji} *Falco ${a.priority}* - ${a.rule}`,\n    `*Namespace:* ${f['k8s.ns.name'] || 'n/a'}  |  *Pod:* ${f['k8s.pod.name'] || 'n/a'}`,\n    `*Container:* ${f['container.name'] || 'n/a'}  |  *Command:* \\`${f['proc.cmdline'] || 'n/a'}\\``,\n    `*Time:* ${a.time}`,\n    `*Tags:* ${(a.tags || []).join(', ')}`,\n  ].join('\\n');\n  out.push({ json: { text, priority: a.priority, rule: a.rule } });\n}\nreturn out;"
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/REPLACE/WITH/YOUR_WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Send to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Falco Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Alert": {
+      "main": [
+        [
+          {
+            "node": "Send to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
